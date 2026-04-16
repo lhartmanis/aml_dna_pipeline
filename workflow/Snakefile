@@ -1,19 +1,21 @@
 from pathlib import Path
-workflow_dir = Path(workflow.basedir)
 
-configfile: str(workflow_dir.parent / "config" / "config.yaml")
+WORKFLOW_DIR = Path(workflow.basedir)
+REPO_ROOT = WORKFLOW_DIR.parent
 
-include: str(workflow_dir / "rules" / "manifest.smk")
-include: str(workflow_dir / "rules" / "alignment.smk")
-include: str(workflow_dir / "rules" / "qc.smk")
-include: str(workflow_dir / "rules" / "somatic.smk")
-include: str(workflow_dir / "rules" / "annotation.smk")
-include: str(workflow_dir / "rules" / "postprocess.smk")
+configfile: str(REPO_ROOT / "config" / "config.yaml")
+
+include: str(WORKFLOW_DIR / "rules" / "manifest.smk")
+include: str(WORKFLOW_DIR / "rules" / "alignment.smk")
+include: str(WORKFLOW_DIR / "rules" / "qc.smk")
+include: str(WORKFLOW_DIR / "rules" / "somatic.smk")
+include: str(WORKFLOW_DIR / "rules" / "annotation.smk")
+include: str(WORKFLOW_DIR / "rules" / "postprocess.smk")
+
 
 rule all:
     input:
-        # core final outputs; adjust once your rules are wired up
-        expand("results/manifest/fastq_manifest.tsv", ),
-        expand("results/qc/bam_qc_summary.tsv", ),
-        expand("results/tables/pass_variants_summary.tsv", ),
-        expand("results/tables/vep_variants_summary.tsv", )
+        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest.tsv"),
+        str(REPO_ROOT / "results" / "qc" / "bam_qc_summary.tsv"),
+        str(REPO_ROOT / "results" / "tables" / "pass_variants_summary.tsv"),
+        str(REPO_ROOT / "results" / "tables" / "vep_variants_summary.tsv")
