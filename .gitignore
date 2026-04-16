@@ -13,6 +13,7 @@ __pycache__/
 .venv/
 env/
 conda-env/
+.token
 
 # Large genomics files
 *.fastq.gz
