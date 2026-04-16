@@ -1,7 +1,9 @@
 ## `config/config.yaml`
 
-```yaml
 project_name: "aml_dna_panel_pipeline"
+
+input:
+  raw_fastq_dir: "/Users/leonard.hartmanis/Library/CloudStorage/OneDrive-KarolinskaInstitutet/Documents/work/postdoc/Kallioniemi/data/dna_seq/test_fastqs"
 
 samples: "config/samples.example.tsv"
 

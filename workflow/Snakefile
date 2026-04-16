@@ -16,6 +16,8 @@ include: str(WORKFLOW_DIR / "rules" / "postprocess.smk")
 rule all:
     input:
         str(REPO_ROOT / "results" / "manifest" / "fastq_manifest.tsv"),
-        str(REPO_ROOT / "results" / "qc" / "bam_qc_summary.tsv"),
-        str(REPO_ROOT / "results" / "tables" / "pass_variants_summary.tsv"),
-        str(REPO_ROOT / "results" / "tables" / "vep_variants_summary.tsv")
+        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest_problems.tsv"),
+        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest_summary.txt"),
+        #str(REPO_ROOT / "results" / "qc" / "bam_qc_summary.tsv"),
+        #str(REPO_ROOT / "results" / "tables" / "pass_variants_summary.tsv"),
+        #str(REPO_ROOT / "results" / "tables" / "vep_variants_summary.tsv")
