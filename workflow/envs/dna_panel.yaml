@@ -1,0 +1,14 @@
+name: dna_panel
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12
+  - bwa-mem2
+  - samtools
+  - picard
+  - gatk4
+  - bcftools
+  - pandas
+  - pyyaml

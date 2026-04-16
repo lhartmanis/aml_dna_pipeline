@@ -1,0 +1,19 @@
+from pathlib import Path
+workflow_dir = Path(workflow.basedir)
+
+configfile: str(workflow_dir.parent / "config" / "config.yaml")
+
+include: str(workflow_dir / "rules" / "manifest.smk")
+include: str(workflow_dir / "rules" / "alignment.smk")
+include: str(workflow_dir / "rules" / "qc.smk")
+include: str(workflow_dir / "rules" / "somatic.smk")
+include: str(workflow_dir / "rules" / "annotation.smk")
+include: str(workflow_dir / "rules" / "postprocess.smk")
+
+rule all:
+    input:
+        # core final outputs; adjust once your rules are wired up
+        expand("results/manifest/fastq_manifest.tsv", ),
+        expand("results/qc/bam_qc_summary.tsv", ),
+        expand("results/tables/pass_variants_summary.tsv", ),
+        expand("results/tables/vep_variants_summary.tsv", )
