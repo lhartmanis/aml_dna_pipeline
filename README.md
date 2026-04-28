@@ -1,109 +1,209 @@
-# AML DNA panel pipeline
+# AML DNA Panel Pipeline
 
-A Snakemake-based workflow for processing targeted DNA sequencing data from AML patient samples, starting from FASTQ files and ending with filtered and annotated somatic variant calls plus sample-level summary tables.
+A modular Snakemake workflow for processing targeted DNA sequencing data from acute myeloid leukemia (AML) samples, from raw FASTQ files to filtered, annotated somatic variant calls and downstream analysis-ready summary tables.
 
-## Overview
+## Quick start
 
-This pipeline is designed for targeted AML DNA panel sequencing and currently implements the following major steps:
+```bash
+git clone https://github.com/lhartmanis/aml_dna_panel_pipeline.git
+cd aml_dna_panel_pipeline
 
-1. Build a FASTQ manifest from raw sequencing files
-2. Align reads per sequencing unit with bwa-mem2
-3. Merge unit-level BAMs per sample
-4. Mark duplicates
-5. Compute BAM QC and coverage summaries
-6. Perform base quality score recalibration (BQSR)
-7. Call somatic variants with GATK Mutect2
-8. Filter Mutect2 calls
-9. Normalize filtered VCFs
-10. Annotate variants with Ensembl VEP
-11. Parse PASS variants into tabular sample-level summaries
-12. Parse VEP-annotated variants into analysis-ready tables
+conda env create -f workflow/envs/dna_panel.yaml
+conda activate dna_panel
 
-## Workflow structure
+# preview the full workflow without running jobs
+snakemake -s workflow/Snakefile -np --cores 1
+```
 
-- `workflow/Snakefile` – main Snakemake entry point
-- `workflow/rules/` – rule files split by workflow stage
-- `workflow/scripts/` – Python and shell scripts used by rules
-- `config/` – configuration files, sample sheet template, panel files
-- `resources/` – notes on references and downloads
-- `profiles/cluster/` – cluster execution profile
-- `results/` – output directory
-- `logs/` – log directory
-- `benchmark/` – benchmark/runtime files
-- `dev/` – helper scripts and legacy launcher scripts retained for development/debugging
+## What the pipeline does
 
-## Inputs
+The workflow implements the following stages:
 
-The workflow expects:
+1. Build a FASTQ manifest from sample directories
+2. Align reads per sequencing unit with `bwa-mem2`
+3. Merge lane/unit BAMs per sample
+4. Mark duplicates with Picard
+5. Generate BAM QC and coverage summaries
+6. Perform base quality score recalibration (BQSR) with GATK
+7. Call somatic variants with GATK Mutect2 and filter calls
+8. Normalize filtered VCFs with `bcftools`
+9. Annotate variants with Ensembl VEP
+10. Parse annotated variants into analysis-ready long and summary tables
 
-- paired-end FASTQ files
-- a sample sheet describing samples and FASTQ locations
-- panel target intervals in BED format
-- panel gene list
-- reference genome and associated indices/resources
-- external resources for BQSR and somatic calling
+## Repository layout
 
-## Main outputs
+```text
+aml_dna_panel_pipeline/
+├── config/                 # user-editable configuration files
+├── dev/                    # helper and development scripts
+├── profiles/               # optional execution profiles
+├── resources/              # notes on references and resource setup
+├── workflow/               # Snakefile, rule files, scripts, environments
+├── LICENSE
+└── README.md
+```
 
-Typical outputs include:
+## Requirements
 
-- sample FASTQ manifest
-- aligned, merged, duplicate-marked, and recalibrated BAM files
-- BAM QC summary tables
-- filtered and normalized VCF files
-- VEP-annotated VCF files
-- parsed variant summary tables for downstream analysis
+- Conda or Mamba
+- Linux or macOS shell environment
+- Local copies of the reference genome and somatic-calling resources
+- Sufficient disk space for BAM/VCF generation
 
-## Software
+## Installation
 
-Main tools used in this workflow include:
+Create the main environment:
 
-- Snakemake
-- bwa-mem2
-- samtools
-- Picard
-- GATK
-- bcftools
-- Ensembl VEP
-- Python
+```bash
+conda env create -f workflow/envs/dna_panel.yaml
+conda activate dna_panel
+```
 
-Tool versions should be recorded in the manuscript and/or release notes for each analysis run.
+If you use a separate VEP environment:
+
+```bash
+conda env create -f workflow/envs/vep.yaml
+```
+
+Check that core tools are available:
+
+```bash
+which bwa-mem2
+which samtools
+which gatk
+which picard
+which bcftools
+snakemake --version
+python --version
+```
+
+## Reference and resource setup
+
+Before running the workflow, prepare the reference FASTA and required resources locally.
+
+Expected resources include:
+
+- GRCh38 reference FASTA
+- FASTA index (`.fai`)
+- sequence dictionary (`.dict`)
+- dbSNP resource for BQSR
+- Mills and 1000G gold-standard indels
+- GATK panel of normals
+- gnomAD germline resource
+- VEP cache
+- VEP FASTA for offline annotation
+
+Reference download notes are provided in:
+
+```text
+resources/reference_download_notes.md
+```
+
+### Reference indexing
+
+Before alignment, the reference FASTA must be indexed for `bwa-mem2`:
+
+```bash
+bwa-mem2 index /path/to/GRCh38.p14.genome.fa
+```
+
+### VEP cache installation
+
+For offline VEP annotation, install the GRCh38 cache into your VEP cache directory:
+
+```bash
+vep_install -a cf -s homo_sapiens -y GRCh38 -c /path/to_vep_cache/.vep
+```
+
+If your configuration points to a custom VEP cache location, make sure `config/config.yaml` matches that path.
 
 ## Configuration
 
 Main runtime settings are stored in:
 
-- `config/config.yaml`
+```text
+config/config.yaml
+```
 
-Panel resources are stored in:
+Important fields include:
 
-- `config/panel/panel_targets.bed`
-- `config/panel/panel_genes.txt`
+- `input.raw_fastq_dir`: root directory containing per-sample FASTQ folders
+- `reference.*`: reference genome and interval resources
+- `resources.*`: dbSNP, Mills, PoN, gnomAD, and VEP resources
+- `tools.*`: executable names or paths
+- `params.*`: thread counts and Java memory settings
+
+Panel-specific files are stored in:
+
+```text
+config/panel/panel_targets.bed
+config/panel/panel_genes.txt
+```
 
 A template sample sheet is provided in:
 
-- `config/samples.example.tsv`
+```text
+config/samples.example.tsv
+```
 
 ## Running the workflow
 
-### Dry run
+### Dry run the full pipeline
 
-```snakemake -s workflow/Snakefile -n```
+```bash
+snakemake -s workflow/Snakefile -np --cores 1
+```
 
-### Local execution
+### Run the full pipeline locally
 
-```snakemake -s workflow/Snakefile --cores 8```
+```bash
+snakemake -s workflow/Snakefile --cores 8
+```
 
-### Cluster/profile execution
+### Run with a profile
 
-```snakemake -s workflow/Snakefile --profile profiles/cluster```
+```bash
+snakemake -s workflow/Snakefile --profile profiles/cluster
+```
 
-### Notes
+### Run a specific target
 
-- Large genomics files and generated outputs are excluded from version control via .gitignore.
-- Empty output directories are retained using .gitkeep.
-- Development/helper scripts from the original project are stored in dev/ and are not required for normal workflow execution.
+For example, build one aligned BAM:
 
-### Status
+```bash
+snakemake -s workflow/Snakefile --cores 1 results/bam/ALBB13002.BC6KGRANXX.NA.sorted.bam
+```
 
-This repository is under active development as the original project scripts are being refactored into a reproducible Snakemake workflow.
+Or build the final annotated summary table:
+
+```bash
+snakemake -s workflow/Snakefile --cores 8 results/analysis/sample_mutect2_summary_annotated.tsv
+```
+
+## Main outputs
+
+The workflow produces the following output categories:
+
+- FASTQ manifest and parsing summaries
+- aligned, merged, duplicate-marked, and BQSR-corrected BAMs
+- per-sample BAM QC metrics and aggregated QC summary tables
+- filtered and normalized Mutect2 VCFs
+- VEP-annotated VCFs
+- final analysis-ready tables:
+  - `results/analysis/variants_long_annotated.tsv.gz`
+  - `results/analysis/sample_mutect2_summary_annotated.tsv`
+
+## Workflow notes
+
+- The workflow uses a Snakemake checkpoint to build the FASTQ manifest before sample- and read-group–specific expansion.
+- Large intermediate BAM files are marked as temporary where appropriate, so completed downstream stages can trigger cleanup automatically.
+- Final downstream variant parsing is driven from VEP-annotated VCFs and a computed panel-size file.
+- Large runtime outputs are excluded from version control via `.gitignore`.
+
+## Development status
+
+This repository contains a modular, reproducible implementation of the main AML targeted-panel DNA processing workflow. Helper scripts under `dev/` are retained for development, testing, and legacy debugging, but are not required for standard execution.
+
+## License
+
+This project is released under the MIT License. See `LICENSE`.
