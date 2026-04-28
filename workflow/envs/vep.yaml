@@ -8,3 +8,5 @@ dependencies:
   - ensembl-vep
   - bcftools
   - pandas
+  - htslib
+  - tabix

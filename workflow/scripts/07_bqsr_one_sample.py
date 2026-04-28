@@ -10,12 +10,12 @@ from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_SAMPLE_BAM_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/sample_bam")
-DEFAULT_BQSR_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/bqsr")
-DEFAULT_LOG_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/logs")
-DEFAULT_REF_FA = Path("/home/leonard.hartmanis/proj/DNA_seq/ref/GRCh38.p14.genome.fa")
-DEFAULT_DBSNP = Path("/home/leonard.hartmanis/proj/DNA_seq/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz")
-DEFAULT_MILLS = Path("/home/leonard.hartmanis/proj/DNA_seq/ref/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz")
+DEFAULT_SAMPLE_BAM_DIR = Path("results/markdup")
+DEFAULT_BQSR_DIR = Path("results/bqsr")
+DEFAULT_LOG_DIR = Path("logs/bqsr")
+DEFAULT_REF_FA = Path("resources/reference.fa")
+DEFAULT_DBSNP = Path("resources/dbsnp.vcf.gz")
+DEFAULT_MILLS = Path("resources/mills.vcf.gz")
 
 
 def timestamp() -> str:

@@ -1,23 +1,75 @@
-from pathlib import Path
+import pandas as pd
 
-WORKFLOW_DIR = Path(workflow.basedir)
-REPO_ROOT = WORKFLOW_DIR.parent
+configfile: "config/config.yaml"
 
-configfile: str(REPO_ROOT / "config" / "config.yaml")
+include: "rules/manifest.smk"
+include: "rules/alignment.smk"
+include: "rules/merge.smk"
+include: "rules/markdup.smk"
+include: "rules/qc.smk"
+include: "rules/qc_collect.smk"
+include: "rules/bqsr.smk"
+include: "rules/mutect2.smk"
+include: "rules/normalize.smk"
+include: "rules/annotation.smk"
+include: "rules/panel_size.smk"
+include: "rules/parse_vep.smk"
 
-include: str(WORKFLOW_DIR / "rules" / "manifest.smk")
-include: str(WORKFLOW_DIR / "rules" / "alignment.smk")
-include: str(WORKFLOW_DIR / "rules" / "qc.smk")
-include: str(WORKFLOW_DIR / "rules" / "somatic.smk")
-include: str(WORKFLOW_DIR / "rules" / "annotation.smk")
-include: str(WORKFLOW_DIR / "rules" / "postprocess.smk")
+def manifest_path_from_checkpoint():
+    ckpt = checkpoints.build_fastq_manifest.get()
+    return ckpt.output.manifest
+
+
+def get_all_rgids():
+    manifest = pd.read_csv(manifest_path_from_checkpoint(), sep="\t")
+    return sorted(manifest["rgid"].unique().tolist())
+
+
+def get_all_samples():
+    manifest = pd.read_csv(manifest_path_from_checkpoint(), sep="\t")
+    return sorted(manifest["sample_id"].unique().tolist())
 
 
 rule all:
     input:
-        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest.tsv"),
-        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest_problems.tsv"),
-        str(REPO_ROOT / "results" / "manifest" / "fastq_manifest_summary.txt"),
-        #str(REPO_ROOT / "results" / "qc" / "bam_qc_summary.tsv"),
-        #str(REPO_ROOT / "results" / "tables" / "pass_variants_summary.tsv"),
-        #str(REPO_ROOT / "results" / "tables" / "vep_variants_summary.tsv")
+        lambda wc: checkpoints.build_fastq_manifest.get().output.manifest,
+        lambda wc: checkpoints.build_fastq_manifest.get().output.problems,
+        lambda wc: checkpoints.build_fastq_manifest.get().output.summary,
+
+        lambda wc: expand("results/bam/{rgid}.sorted.bam", rgid=get_all_rgids()),
+        lambda wc: expand("results/bam/{rgid}.sorted.bam.bai", rgid=get_all_rgids()),
+
+        lambda wc: expand("results/sample_bam/{sample}.merged.bam", sample=get_all_samples()),
+        lambda wc: expand("results/sample_bam/{sample}.merged.bam.bai", sample=get_all_samples()),
+
+        lambda wc: expand("results/markdup/{sample}.markdup.bam", sample=get_all_samples()),
+        lambda wc: expand("results/markdup/{sample}.markdup.bam.bai", sample=get_all_samples()),
+        lambda wc: expand("results/qc/{sample}.markdup.metrics.txt", sample=get_all_samples()),
+
+        lambda wc: expand("results/qc/{sample}.flagstat.txt", sample=get_all_samples()),
+        lambda wc: expand("results/qc/{sample}.idxstats.txt", sample=get_all_samples()),
+        lambda wc: expand("results/qc/{sample}.target_depth.tsv", sample=get_all_samples()),
+        lambda wc: expand("results/qc/{sample}.hs_metrics.txt", sample=get_all_samples()),
+        lambda wc: expand("results/qc/{sample}.qc_summary.json", sample=get_all_samples()),
+
+        "results/qc/bam_qc_summary.tsv",
+
+        lambda wc: expand("results/bqsr/{sample}.pre_recal.table", sample=get_all_samples()),
+        lambda wc: expand("results/bqsr/{sample}.bqsr.bam", sample=get_all_samples()),
+        lambda wc: expand("results/bqsr/{sample}.bqsr.bam.bai", sample=get_all_samples()),
+        lambda wc: expand("results/bqsr/{sample}.post_recal.table", sample=get_all_samples()),
+
+        lambda wc: expand("results/mutect2/{sample}.unfiltered.vcf.gz", sample=get_all_samples()),
+        lambda wc: expand("results/mutect2/{sample}.unfiltered.vcf.gz.tbi", sample=get_all_samples()),
+        lambda wc: expand("results/mutect2/{sample}.filtered.vcf.gz", sample=get_all_samples()),
+        lambda wc: expand("results/mutect2/{sample}.filtered.vcf.gz.tbi", sample=get_all_samples()),
+        lambda wc: expand("results/mutect2/{sample}.unfiltered.vcf.gz.stats", sample=get_all_samples()),
+
+        lambda wc: expand("results/mutect2_norm/{sample}.filtered.norm.vcf.gz", sample=get_all_samples()),
+        lambda wc: expand("results/mutect2_norm/{sample}.filtered.norm.vcf.gz.tbi", sample=get_all_samples()),
+
+        lambda wc: expand("results/vep/{sample}.filtered.vep.vcf.gz", sample=get_all_samples()),
+        lambda wc: expand("results/vep/{sample}.filtered.vep.vcf.gz.tbi", sample=get_all_samples()),
+
+        "results/analysis/variants_long_annotated.tsv.gz",
+        "results/analysis/sample_mutect2_summary_annotated.tsv",

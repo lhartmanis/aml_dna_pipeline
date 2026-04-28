@@ -2,26 +2,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import argparse
 import gzip
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 import pandas as pd
 from cyvcf2 import VCF
+from pathlib import Path
 
-
-PROJECT_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq")
-VEP_DIR = PROJECT_DIR / "results" / "vep"
-OUT_DIR = PROJECT_DIR / "results" / "analysis"
-SAMPLE_LIST = PROJECT_DIR / "metadata" / "all_sample_ids.txt"
-PANEL_SIZE_FILE = PROJECT_DIR / "results" / "panel_metrics" / "panel_size.txt"
-
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-OUT_LONG = OUT_DIR / "variants_long_annotated.tsv.gz"
-OUT_SUMMARY = OUT_DIR / "sample_mutect2_summary_annotated.tsv"
 
 GENES_OF_INTEREST = ["TP53", "FLT3", "NRAS", "KRAS"]
 OPTIONAL_DRIVER_GENES = [
@@ -31,7 +21,6 @@ OPTIONAL_DRIVER_GENES = [
 ]
 ALL_FLAG_GENES = sorted(set(GENES_OF_INTEREST + OPTIONAL_DRIVER_GENES))
 
-# Consequence groups
 NONSYN_TERMS = {
     "missense_variant",
     "stop_gained",
@@ -62,7 +51,6 @@ SYN_TERMS = {
     "synonymous_variant",
 }
 
-# Rare thresholds
 RARE_THRESHOLDS = {
     "1e-3": 1e-3,
     "1e-4": 1e-4,
@@ -120,7 +108,6 @@ def extract_best_csq(csq_str: str | None, csq_fields: list[str]) -> dict[str, st
 
 
 def get_filter_label(var) -> str:
-    # cyvcf2 returns None for PASS in many cases
     if var.FILTER is None or var.FILTER == "PASS":
         return "PASS"
     return str(var.FILTER)
@@ -136,7 +123,6 @@ def extract_dp(var) -> float:
     except Exception:
         pass
 
-    # INFO fallback
     try:
         return safe_float(var.INFO.get("DP"))
     except Exception:
@@ -232,149 +218,103 @@ def is_rare(max_af: float, threshold: float) -> bool:
     return np.isnan(max_af) or (max_af < threshold)
 
 
-def nanmedian_safe(values: list[float]) -> float:
+def nanmedian_safe(values):
     arr = np.array(values, dtype=float)
     if arr.size == 0:
         return np.nan
     return float(np.nanmedian(arr))
 
 
-def nanmax_safe(values: list[float]) -> float:
+def nanmax_safe(values):
     arr = np.array(values, dtype=float)
     if arr.size == 0:
         return np.nan
     return float(np.nanmax(arr))
 
 
-def nanmean_safe(values: list[float]) -> float:
+def nanmean_safe(values):
     arr = np.array(values, dtype=float)
     if arr.size == 0:
         return np.nan
     return float(np.nanmean(arr))
 
 
-def naniqr_safe(values: list[float]) -> float:
+def naniqr_safe(values):
     arr = np.array(values, dtype=float)
     if arr.size == 0:
         return np.nan
     return float(np.nanpercentile(arr, 75) - np.nanpercentile(arr, 25))
 
 
-def summarize_sample(
-    sample_id: str,
-    panel_mb: float,
-    rows: list[dict],
-    gene_hits: dict[str, int],
-    filter_counter: Counter,
-) -> dict[str, object]:
+def summarize_sample(sample_id, panel_mb, rows, gene_hits, filter_counter):
     if len(rows) == 0:
-        summary = {"sample_id": sample_id, "panel_mb": panel_mb}
-        return summary
+        return {"sample_id": sample_id, "panel_mb": panel_mb}
 
     df = pd.DataFrame(rows)
 
-    # all variants
     n_total = len(df)
     n_total_snv = int((df["variant_type"] == "SNV").sum())
     n_total_indel = int((df["variant_type"] == "INDEL").sum())
 
-    # PASS subset
     df_pass = df[df["filter"] == "PASS"].copy()
     n_pass_total = len(df_pass)
     n_pass_snv = int((df_pass["variant_type"] == "SNV").sum())
     n_pass_indel = int((df_pass["variant_type"] == "INDEL").sum())
 
-    # functional counts in PASS
     n_pass_syn = int(df_pass["is_syn"].sum())
     n_pass_nonsyn = int(df_pass["is_nonsyn"].sum())
     n_pass_trunc = int(df_pass["is_trunc"].sum())
     n_pass_splice = int(df_pass["is_splice"].sum())
 
-    # rare functional counts in PASS
     rare_counts = {}
     for label, thr in RARE_THRESHOLDS.items():
         rare_counts[f"n_pass_nonsyn_rare_{label.replace('-', '_')}"] = int(
             ((df_pass["is_nonsyn"]) & ((df_pass["max_af"].isna()) | (df_pass["max_af"] < thr))).sum()
         )
 
-    # VAF/depth metrics in PASS
     pass_vaf = df_pass["vaf"].dropna().tolist()
     pass_dp = df_pass["dp"].dropna().tolist()
     pass_ad_alt = df_pass["ad_alt"].dropna().tolist()
 
-    vaf_median_pass = nanmedian_safe(pass_vaf)
-    vaf_max_pass = nanmax_safe(pass_vaf)
-    vaf_iqr_pass = naniqr_safe(pass_vaf)
-    frac_vaf_ge_0_25 = nanmean_safe((df_pass["vaf"] >= 0.25).astype(float).tolist()) if n_pass_total > 0 else np.nan
-    frac_vaf_ge_0_40 = nanmean_safe((df_pass["vaf"] >= 0.40).astype(float).tolist()) if n_pass_total > 0 else np.nan
-    n_low_vaf_lt_0_05 = int((df_pass["vaf"] < 0.05).sum())
-
-    dp_median_pass = nanmedian_safe(pass_dp)
-    dp_iqr_pass = naniqr_safe(pass_dp)
-    ad_alt_median_pass = nanmedian_safe(pass_ad_alt)
-
-    # known/common signal in PASS
-    frac_pass_with_existing_variation = nanmean_safe(df_pass["has_existing_variation"].astype(float).tolist()) if n_pass_total > 0 else np.nan
-    frac_pass_with_rsid = nanmean_safe(df_pass["has_rsid"].astype(float).tolist()) if n_pass_total > 0 else np.nan
-    frac_pass_with_max_af = nanmean_safe(df_pass["max_af"].notna().astype(float).tolist()) if n_pass_total > 0 else np.nan
-    frac_pass_with_max_af_gt_0_01 = nanmean_safe((df_pass["max_af"] > 0.01).astype(float).tolist()) if n_pass_total > 0 else np.nan
-
-    # panel-normalized burdens
-    burden_total_perMb = n_pass_total / panel_mb
-    burden_nonsyn_perMb = n_pass_nonsyn / panel_mb
-    burden_nonsyn_rare_1e_3_perMb = rare_counts["n_pass_nonsyn_rare_1e_3"] / panel_mb
-    burden_nonsyn_rare_1e_4_perMb = rare_counts["n_pass_nonsyn_rare_1e_4"] / panel_mb
-
     summary = {
         "sample_id": sample_id,
         "panel_mb": panel_mb,
-
         "n_total": n_total,
         "n_total_snv": n_total_snv,
         "n_total_indel": n_total_indel,
-
         "n_pass_total": n_pass_total,
         "n_pass_snv": n_pass_snv,
         "n_pass_indel": n_pass_indel,
-
         "n_pass_syn": n_pass_syn,
         "n_pass_nonsyn": n_pass_nonsyn,
         "n_pass_trunc": n_pass_trunc,
         "n_pass_splice": n_pass_splice,
-
         **rare_counts,
-
-        "burden_total_perMb": burden_total_perMb,
-        "burden_nonsyn_perMb": burden_nonsyn_perMb,
-        "burden_nonsyn_rare_1e_3_perMb": burden_nonsyn_rare_1e_3_perMb,
-        "burden_nonsyn_rare_1e_4_perMb": burden_nonsyn_rare_1e_4_perMb,
-
+        "burden_total_perMb": n_pass_total / panel_mb,
+        "burden_nonsyn_perMb": n_pass_nonsyn / panel_mb,
+        "burden_nonsyn_rare_1e_3_perMb": rare_counts["n_pass_nonsyn_rare_1e_3"] / panel_mb,
+        "burden_nonsyn_rare_1e_4_perMb": rare_counts["n_pass_nonsyn_rare_1e_4"] / panel_mb,
         "frac_pass": (n_pass_total / n_total) if n_total > 0 else np.nan,
-
-        "vaf_median_pass": vaf_median_pass,
-        "vaf_max_pass": vaf_max_pass,
-        "vaf_iqr_pass": vaf_iqr_pass,
-        "frac_vaf_ge_0_25": frac_vaf_ge_0_25,
-        "frac_vaf_ge_0_40": frac_vaf_ge_0_40,
-        "n_low_vaf_lt_0_05": n_low_vaf_lt_0_05,
-
-        "dp_median_pass": dp_median_pass,
-        "dp_iqr_pass": dp_iqr_pass,
-        "ad_alt_median_pass": ad_alt_median_pass,
-
-        "frac_pass_with_existing_variation": frac_pass_with_existing_variation,
-        "frac_pass_with_rsid": frac_pass_with_rsid,
-        "frac_pass_with_max_af": frac_pass_with_max_af,
-        "frac_pass_with_max_af_gt_0_01": frac_pass_with_max_af_gt_0_01,
+        "vaf_median_pass": nanmedian_safe(pass_vaf),
+        "vaf_max_pass": nanmax_safe(pass_vaf),
+        "vaf_iqr_pass": naniqr_safe(pass_vaf),
+        "frac_vaf_ge_0_25": nanmean_safe((df_pass["vaf"] >= 0.25).astype(float).tolist()) if n_pass_total > 0 else np.nan,
+        "frac_vaf_ge_0_40": nanmean_safe((df_pass["vaf"] >= 0.40).astype(float).tolist()) if n_pass_total > 0 else np.nan,
+        "n_low_vaf_lt_0_05": int((df_pass["vaf"] < 0.05).sum()),
+        "dp_median_pass": nanmedian_safe(pass_dp),
+        "dp_iqr_pass": naniqr_safe(pass_dp),
+        "ad_alt_median_pass": nanmedian_safe(pass_ad_alt),
+        "frac_pass_with_existing_variation": nanmean_safe(df_pass["has_existing_variation"].astype(float).tolist()) if n_pass_total > 0 else np.nan,
+        "frac_pass_with_rsid": nanmean_safe(df_pass["has_rsid"].astype(float).tolist()) if n_pass_total > 0 else np.nan,
+        "frac_pass_with_max_af": nanmean_safe(df_pass["max_af"].notna().astype(float).tolist()) if n_pass_total > 0 else np.nan,
+        "frac_pass_with_max_af_gt_0_01": nanmean_safe((df_pass["max_af"] > 0.01).astype(float).tolist()) if n_pass_total > 0 else np.nan,
     }
 
-    # filter composition
     summary["n_filter_PASS"] = filter_counter.get("PASS", 0)
     for key, val in sorted(filter_counter.items()):
         safe_key = re.sub(r"[^A-Za-z0-9_]+", "_", key)
         summary[f"n_filter_{safe_key}"] = val
 
-    # gene flags
     for gene in ALL_FLAG_GENES:
         summary[f"{gene}_mut"] = int(gene_hits.get(gene, 0))
 
@@ -383,21 +323,37 @@ def summarize_sample(
 
 
 def main():
-    panel_mb = parse_panel_mb(PANEL_SIZE_FILE)
+    parser = argparse.ArgumentParser(description="Parse per-sample VEP VCFs into long and summary tables.")
+    parser.add_argument("--vep-dir", required=True)
+    parser.add_argument("--panel-size-file", required=True)
+    parser.add_argument("--output-long", required=True)
+    parser.add_argument("--output-summary", required=True)
+    args = parser.parse_args()
 
-    with open(SAMPLE_LIST) as f:
-        sample_ids = [x.strip() for x in f if x.strip()]
+    vep_dir = Path(args.vep_dir)
+    panel_size_file = Path(args.panel_size_file)
+    output_long = Path(args.output_long)
+    output_summary = Path(args.output_summary)
+
+    if not vep_dir.exists():
+        raise FileNotFoundError(f"VEP directory not found: {vep_dir}")
+
+    output_long.parent.mkdir(parents=True, exist_ok=True)
+    output_summary.parent.mkdir(parents=True, exist_ok=True)
+
+    panel_mb = parse_panel_mb(panel_size_file)
+    vcf_files = sorted(vep_dir.glob("*.filtered.vep.vcf.gz"))
+
+    if not vcf_files:
+        raise RuntimeError(f"No VEP VCFs found in {vep_dir}")
 
     all_rows = []
     all_summaries = []
 
-    for i, sample_id in enumerate(sample_ids, start=1):
-        vcf_path = VEP_DIR / f"{sample_id}.filtered.vep.vcf.gz"
-        if not vcf_path.exists():
-            print(f"[{i}/{len(sample_ids)}] WARNING missing: {vcf_path}")
-            continue
+    for i, vcf_path in enumerate(vcf_files, start=1):
+        sample_id = vcf_path.name.replace(".filtered.vep.vcf.gz", "")
+        print(f"[{i}/{len(vcf_files)}] Parsing {sample_id}")
 
-        print(f"[{i}/{len(sample_ids)}] Parsing {sample_id}")
         vcf = VCF(str(vcf_path))
         csq_fields = parse_vep_csq_header(vcf)
 
@@ -417,34 +373,14 @@ def main():
 
             csq = extract_best_csq(var.INFO.get("CSQ"), csq_fields)
 
-            allele = csq.get("Allele", "")
             consequence = csq.get("Consequence", "")
-            impact = csq.get("IMPACT", "")
             symbol = csq.get("SYMBOL", "")
-            gene_id = csq.get("Gene", "")
-            feature_type = csq.get("Feature_type", "")
-            feature = csq.get("Feature", "")
-            biotype = csq.get("BIOTYPE", "")
-            hgvsc = csq.get("HGVSc", "")
-            hgvsp = csq.get("HGVSp", "")
             existing_variation = csq.get("Existing_variation", "")
-            variant_class = csq.get("VARIANT_CLASS", "")
-            canonical = csq.get("CANONICAL", "")
-            sift = csq.get("SIFT", "")
-            polyphen = csq.get("PolyPhen", "")
-            clin_sig = csq.get("CLIN_SIG", "")
-            somatic = csq.get("SOMATIC", "")
-
-            af = safe_float(csq.get("AF", ""))
-            gnomade_af = safe_float(csq.get("gnomADe_AF", ""))
-            gnomadg_af = safe_float(csq.get("gnomADg_AF", ""))
             max_af = safe_float(csq.get("MAX_AF", ""))
-            max_af_pops = csq.get("MAX_AF_POPS", "")
 
             flags = consequence_flags(consequence)
             existing_info = parse_existing_variation(existing_variation)
 
-            # gene-level mutation flags: PASS + functional
             if filter_label == "PASS" and flags["is_nonsyn"] and symbol in gene_hits:
                 gene_hits[symbol] = 1
 
@@ -456,37 +392,31 @@ def main():
                 "alt": alt,
                 "variant_type": variant_type,
                 "filter": filter_label,
-
                 "dp": safe_float(dp),
                 "ad_ref": safe_float(ad_ref),
                 "ad_alt": safe_float(ad_alt),
                 "vaf": safe_float(vaf),
-
-                "allele": allele,
                 "gene": symbol,
-                "gene_id": gene_id,
-                "feature_type": feature_type,
-                "feature": feature,
-                "biotype": biotype,
+                "gene_id": csq.get("Gene", ""),
+                "feature_type": csq.get("Feature_type", ""),
+                "feature": csq.get("Feature", ""),
+                "biotype": csq.get("BIOTYPE", ""),
                 "consequence": consequence,
-                "impact": impact,
-                "variant_class": variant_class,
-                "canonical": canonical,
-                "hgvsc": hgvsc,
-                "hgvsp": hgvsp,
-                "sift": sift,
-                "polyphen": polyphen,
-                "clin_sig": clin_sig,
-                "somatic": somatic,
-
+                "impact": csq.get("IMPACT", ""),
+                "variant_class": csq.get("VARIANT_CLASS", ""),
+                "canonical": csq.get("CANONICAL", ""),
+                "hgvsc": csq.get("HGVSc", ""),
+                "hgvsp": csq.get("HGVSp", ""),
+                "sift": csq.get("SIFT", ""),
+                "polyphen": csq.get("PolyPhen", ""),
+                "clin_sig": csq.get("CLIN_SIG", ""),
+                "somatic": csq.get("SOMATIC", ""),
                 **existing_info,
-
-                "af_1kg": af,
-                "gnomade_af": gnomade_af,
-                "gnomadg_af": gnomadg_af,
+                "af_1kg": safe_float(csq.get("AF", "")),
+                "gnomade_af": safe_float(csq.get("gnomADe_AF", "")),
+                "gnomadg_af": safe_float(csq.get("gnomADg_AF", "")),
                 "max_af": max_af,
-                "max_af_pops": max_af_pops,
-
+                "max_af_pops": csq.get("MAX_AF_POPS", ""),
                 "is_syn": flags["is_syn"],
                 "is_nonsyn": flags["is_nonsyn"],
                 "is_trunc": flags["is_trunc"],
@@ -511,14 +441,13 @@ def main():
     df_long = pd.DataFrame(all_rows)
     df_summary = pd.DataFrame(all_summaries).sort_values("sample_id")
 
-    # Write outputs
-    with gzip.open(OUT_LONG, "wt") as f:
+    with gzip.open(output_long, "wt") as f:
         df_long.to_csv(f, sep="\t", index=False)
 
-    df_summary.to_csv(OUT_SUMMARY, sep="\t", index=False)
+    df_summary.to_csv(output_summary, sep="\t", index=False)
 
-    print(f"\nWrote long table:    {OUT_LONG}")
-    print(f"Wrote summary table: {OUT_SUMMARY}")
+    print(f"Wrote long table: {output_long}")
+    print(f"Wrote summary table: {output_summary}")
 
 
 if __name__ == "__main__":

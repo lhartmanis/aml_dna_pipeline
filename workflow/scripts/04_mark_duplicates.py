@@ -29,6 +29,7 @@ def log(msg: str, logfh) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run Picard MarkDuplicates on merged sample BAMs.")
     parser.add_argument("--sample-bam-dir", default=str(DEFAULT_SAMPLE_BAM_DIR), help="Directory with merged sample BAMs")
+    parser.add_argument("--output-dir", default = "results/markdup")
     parser.add_argument("--qc-dir", default=str(DEFAULT_QC_DIR), help="Directory for metrics files")
     parser.add_argument("--log-dir", default=str(DEFAULT_LOG_DIR), help="Directory for logs")
     parser.add_argument("--sample-id", help="Run only one sample")
@@ -38,8 +39,13 @@ def main() -> None:
     args = parser.parse_args()
 
     sample_bam_dir = Path(args.sample_bam_dir)
+    output_dir = Path(args.output_dir)
     qc_dir = Path(args.qc_dir)
     log_dir = Path(args.log_dir)
+
+    output_dir.mkdir(parents = True, exist_ok = True)
+    qc_dir.mkdir(parents = True, exist_ok = True)
+    log_dir.mkdir(parents = True, exist_ok = True)
 
     if not sample_bam_dir.exists():
         raise FileNotFoundError(f"Sample BAM directory not found: {sample_bam_dir}")
@@ -77,8 +83,10 @@ def main() -> None:
 
             input_bam = sample_bam_dir / f"{sample_id}.merged.bam"
             input_bai = sample_bam_dir / f"{sample_id}.merged.bam.bai"
-            output_bam = sample_bam_dir / f"{sample_id}.markdup.bam"
-            output_bai = sample_bam_dir / f"{sample_id}.markdup.bam.bai"
+
+            output_bam = output_dir / f"{sample_id}.markdup.bam"
+            output_bai = output_dir / f"{sample_id}.markdup.bam.bai"
+
             metrics_file = qc_dir / f"{sample_id}.markdup.metrics.txt"
             sample_log = log_dir / f"{sample_id}.markdup.log"
 
@@ -102,29 +110,15 @@ def main() -> None:
 
             picard_cmd = [
                 "picard",
-                "-Xmx8g" if args.java_options == "-Xmx8g" else args.java_options,
+                args.java_options,
                 "MarkDuplicates",
                 f"I={input_bam}",
                 f"O={output_bam}",
                 f"M={metrics_file}",
-                "CREATE_INDEX=true",
+                "CREATE_INDEX=false",
                 "VALIDATION_STRINGENCY=LENIENT",
                 "ASSUME_SORT_ORDER=coordinate",
             ]
-
-            # avoid duplicate -Xmx handling if user gives custom opts
-            if args.java_options != "-Xmx8g":
-                picard_cmd = [
-                    "picard",
-                    args.java_options,
-                    "MarkDuplicates",
-                    f"I={input_bam}",
-                    f"O={output_bam}",
-                    f"M={metrics_file}",
-                    "CREATE_INDEX=true",
-                    "VALIDATION_STRINGENCY=LENIENT",
-                    "ASSUME_SORT_ORDER=coordinate",
-                ]
 
             if args.dry_run:
                 log(f"DRY-RUN {sample_id}", master_fh)

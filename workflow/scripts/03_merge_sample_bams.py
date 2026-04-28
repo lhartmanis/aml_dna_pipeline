@@ -13,10 +13,10 @@ from pathlib import Path
 import pandas as pd
 
 
-DEFAULT_MANIFEST = Path("/home/leonard.hartmanis/proj/DNA_seq/metadata/fastq_manifest.tsv")
-DEFAULT_UNIT_BAM_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/unit_bam")
-DEFAULT_SAMPLE_BAM_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/sample_bam")
-DEFAULT_LOG_DIR = Path("/home/leonard.hartmanis/proj/DNA_seq/results/logs")
+DEFAULT_MANIFEST = Path("results/manifest/fastq_manifest.tsv")
+DEFAULT_UNIT_BAM_DIR = Path("results/bam")
+DEFAULT_SAMPLE_BAM_DIR = Path("results/sample_bam")
+DEFAULT_LOG_DIR = Path("logs/merge")
 
 
 def timestamp() -> str:
@@ -37,7 +37,7 @@ def safe_unlink(path: Path) -> None:
 
 def ensure_symlink(src: Path, dst: Path) -> None:
     safe_unlink(dst)
-    os.symlink(src, dst)
+    os.symlink(src.resolve(), dst)
 
 
 def samtools_index(bam: Path, logfh) -> None:

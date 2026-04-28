@@ -15,6 +15,12 @@ env/
 conda-env/
 .token
 
+# Runtime/output directories
+results/
+logs/
+benchmark/
+tmp/
+
 # Large genomics files
 *.fastq.gz
 *.fq.gz
@@ -31,13 +37,3 @@ conda-env/
 *.fasta
 *.fai
 *.dict
-
-# Output folders: ignore contents but keep folder structure
-results/*
-!results/.gitkeep
-
-logs/*
-!logs/.gitkeep
-
-benchmark/*
-!benchmark/.gitkeep

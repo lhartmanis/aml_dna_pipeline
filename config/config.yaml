@@ -3,7 +3,7 @@
 project_name: "aml_dna_panel_pipeline"
 
 input:
-  raw_fastq_dir: "/Users/leonard.hartmanis/Library/CloudStorage/OneDrive-KarolinskaInstitutet/Documents/work/postdoc/Kallioniemi/data/dna_seq/test_fastqs"
+  raw_fastq_dir: "/home/leonard.hartmanis/proj/DNA_seq/raw_fastq"
 
 samples: "config/samples.example.tsv"
 
@@ -12,17 +12,20 @@ panel:
   genes: "config/panel/panel_genes.txt"
 
 reference:
-  fasta: "/path/to/reference/genome.fa"
-  fasta_fai: "/path/to/reference/genome.fa.fai"
-  sequence_dict: "/path/to/reference/genome.dict"
+  fasta: "/home/leonard.hartmanis/proj/DNA_seq/ref/GRCh38.p14.genome.fa"
+  fasta_fai: "/home/leonard.hartmanis/proj/DNA_seq/ref/GRCh38.p14.genome.fa.fai"
+  sequence_dict: "/home/leonard.hartmanis/proj/DNA_seq/ref/GRCh38.p14.genome.dict"
+  interval_bed: "/home/leonard.hartmanis/proj/DNA_seq/intervals/panel_targets_all_hg38.dict_filtered.bed"
+  interval_list: "/home/leonard.hartmanis/proj/DNA_seq/intervals/panel_targets_all_hg38.interval_list"
 
 resources:
-  dbsnp: "/path/to/Homo_sapiens_assembly38.dbsnp138.vcf"
-  mills_indels: "/path/to/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz"
-  pon: "/path/to/1000g_pon.hg38.vcf.gz"
-  germline_resource: "/path/to/af-only-gnomad.hg38.vcf.gz"
-  vep_cache: "/path/to/vep/cache"
-  vep_plugins: "/path/to/vep/plugins"
+  dbsnp: "/home/leonard.hartmanis/proj/DNA_seq/ref/Homo_sapiens_assembly38.dbsnp138.vcf.gz"
+  mills_indels: "/home/leonard.hartmanis/proj/DNA_seq/ref/Mills_and_1000G_gold_standard.indels.hg38.vcf.gz"
+  pon: "/home/leonard.hartmanis/proj/DNA_seq/ref/1000g_pon.hg38.vcf.gz"
+  germline_resource: "/home/leonard.hartmanis/proj/DNA_seq/ref/af-only-gnomad.hg38.vcf.gz"
+  vep_cache: "/home/leonard.hartmanis/.vep"
+  vep_plugins: "/home/leonard.hartmanis/.vep/Plugins"
+  vep_fasta: "/home/leonard.hartmanis/.vep/homo_sapiens/115_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz"
 
 tools:
   bwa_mem2: "bwa-mem2"
@@ -30,12 +33,13 @@ tools:
   picard: "picard"
   gatk: "gatk"
   bcftools: "bcftools"
-  vep: "vep"
+  vep: "/home/leonard.hartmanis/packages/ensembl-vep/vep"
   python: "python"
 
 params:
   bwa_threads: 8
   samtools_threads: 4
+  sort_memory: "1G"
   gatk_java_opts: "-Xmx16g"
   mapq_min: 20
 
