@@ -5,7 +5,7 @@ A modular Snakemake workflow for processing targeted DNA sequencing data from ac
 ## Quick start
 
 ```bash
-git clone https://github.com/lhartmanis/aml_dna_panel_pipeline.git
+git clone https://github.com/lhartmanis/aml_dna_panel_pipeline
 cd aml_dna_panel_pipeline
 
 conda env create -f workflow/envs/dna_panel.yaml
@@ -133,7 +133,7 @@ Important fields include:
 - `tools.*`: executable names or paths
 - `params.*`: thread counts and Java memory settings
 
-Existing `config/config.yaml` paths are placeholders and should be updated to match your local installation.
+Example `config/config.yaml` paths are placeholders and should be updated to match your local installation.
 
 Panel-specific files are stored in:
 
