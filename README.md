@@ -133,6 +133,8 @@ Important fields include:
 - `tools.*`: executable names or paths
 - `params.*`: thread counts and Java memory settings
 
+Existing `config/config.yaml` paths are placeholders and should be updated to match your local installation.
+
 Panel-specific files are stored in:
 
 ```text
@@ -171,7 +173,7 @@ snakemake -s workflow/Snakefile --profile profiles/cluster
 For example, build one aligned BAM:
 
 ```bash
-snakemake -s workflow/Snakefile --cores 1 results/bam/ALBB13002.BC6KGRANXX.NA.sorted.bam
+snakemake -s workflow/Snakefile --cores 1 results/bam/target_sample.sorted.bam
 ```
 
 Or build the final annotated summary table:
