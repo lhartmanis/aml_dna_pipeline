@@ -1,4 +1,4 @@
-# AML DNA Panel Pipeline 🧬
+# 🧬 AML DNA Panel Pipeline 
 
 A modular Snakemake workflow for processing targeted DNA sequencing data from acute myeloid leukemia (AML) samples, from raw FASTQ files to filtered, annotated somatic variant calls and downstream analysis-ready summary tables.
 
